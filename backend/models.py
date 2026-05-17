@@ -23,6 +23,8 @@ class Child(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     # Remplacement de age par birthdate
     birthdate: Mapped[date] = mapped_column(Date, nullable=False)
+    # Ajout de la colonne allergies
+    allergies: Mapped[str] = mapped_column(String, nullable=True, default="")
 
     id_parent: Mapped[int] = mapped_column(ForeignKey("utilisateurs.id"))
     parent: Mapped["User"] = relationship(back_populates="children")
