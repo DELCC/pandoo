@@ -1,17 +1,17 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
-from datetime import date # Import nécessaire pour la date de naissance
+from datetime import date 
 
 # --- SCHÉMAS UTILISATEUR ---
 class UserCreate(BaseModel):
-    username: str = Field(min_length=2, max_length=50) # Ajout du champ username
+    username: str = Field(min_length=2, max_length=50)
     name: str = Field(min_length=2, max_length=100)
     email: EmailStr
     password : str
 
 class UserRead(BaseModel):
     id: int
-    username: str # Ajout pour la lecture
+    username: str 
     name: str
     email: EmailStr
     
@@ -23,14 +23,14 @@ class ChildCreate(BaseModel):
     name: str
     birthdate: date
     id_parent: int
-    # SUPPRIME la ligne age: int ici !
+    allergies: Optional[str] = "" # <-- AJOUT : Permet de recevoir les allergies au POST
 
 class ChildRead(BaseModel):
     id : int
     name : str
-    # Remplacement de age par birthdate
     birthdate : date
     id_parent : int
+    allergies: Optional[str] = "" # <-- AJOUT : Permet de renvoyer les allergies au GET
     
     class Config:
         from_attributes = True

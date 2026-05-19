@@ -3,31 +3,34 @@ from sqlalchemy.orm import Session
 from db.database import get_db
 import models
 from pydantic import BaseModel
-from datetime import date # Ajout de l'import pour le format Date
+from typing import Optional # AJOUTÉ
+from datetime import date 
 
 router = APIRouter(prefix="/children", tags=["Children"])
 
 # --- SCHÉMA DE DONNÉES (Pydantic) ---
 class ChildCreate(BaseModel):
     name: str
-    birthdate: date  # Remplacement de age par birthdate pour correspondre au modèle SQL
+    birthdate: date  
     id_parent: int
+    allergies: Optional[str] = "" # <-- AJOUTÉ
 
 # --- ROUTES ---
 
 @router.post("/")
 def create_child(child_data: ChildCreate, db: Session = Depends(get_db)):
-    # 1. Vérification de l'existence du parent dans la table "utilisateurs"
+    # 1. Vérification de l'existence du parent
     parent = db.query(models.User).filter(models.User.id == child_data.id_parent).first()
     
     if not parent:
         raise HTTPException(status_code=404, detail="Parent non trouvé dans la base de données")
 
-    # 2. Création de l'instance d'enfant liée
+    # 2. Création de l'instance d'enfant avec les allergies
     new_child = models.Child(
         name=child_data.name,
-        birthdate=child_data.birthdate, # Utilisation de birthdate au lieu de age
-        id_parent=child_data.id_parent
+        birthdate=child_data.birthdate,
+        id_parent=child_data.id_parent,
+        allergies=child_data.allergies # <-- AJOUTÉ
     )
     
     db.add(new_child)
@@ -41,7 +44,8 @@ def create_child(child_data: ChildCreate, db: Session = Depends(get_db)):
             "id": new_child.id,
             "name": new_child.name,
             "birthdate": new_child.birthdate,
-            "id_parent": new_child.id_parent
+            "id_parent": new_child.id_parent,
+            "allergies": new_child.allergies # <-- AJOUTÉ
         }
     }
 
