@@ -3,17 +3,21 @@ from app.core.config import settings
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-async def generate_story(child_name: str, product_name: str, child_age: int) -> str:
+async def generate_story(child_name: str, product_name: str, child_age: int, product_category: str) -> str:
     prompt = f"""
-    Génère une histoire courte et amusante pour un enfant de {child_age} ans.
-    L'enfant s'appelle {child_name} et est le héros de l'histoire.
-    L'histoire doit être en rapport avec le produit : {product_name}.
-    L'histoire doit être positive, éducative et parler de nutrition de façon ludique.
-    Maximum 150 mots.
+    Écris une histoire courte pour un enfant de {child_age} ans dont il est le héros.
+    Le prénom de l'enfant est {child_name}.
+    Le thème est : {product_category}.
+    
+    L'histoire commence par le scan de {product_name} dans le monde réel qui devient magique.
+    L'histoire doit durer environ 1 minute à la lecture (entre 150 et 200 mots, adapte selon l'âge {child_age} ans).
+    Le ton doit être ludique, éducatif et bienveillant.
+    Si le produit est sucré, évite de promouvoir la surconsommation.
+    {child_name} doit être le héros de l'aventure.
     """
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents={"text":"dis bonjour"}
+        model="gemini-2.0-flash-lite",
+        contents=prompt
     )
     return response.text
 

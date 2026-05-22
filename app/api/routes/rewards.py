@@ -40,7 +40,8 @@ async def generate_reward_content(reward_id: UUID, db: AsyncSession = Depends(ge
     child_age = calculate_age(child.birth_date)
 
     if reward.reward_type == "story":
-        content = await generate_story(child.first_name, product_name, child_age)
+        product_category = scan.product_name if scan else "aventure"
+        content = await generate_story(child.first_name, product_name, child_age, product_category)
     elif reward.reward_type == "quiz":
         content = await generate_quiz(product_name, child_age)
     else:
