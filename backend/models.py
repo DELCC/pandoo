@@ -9,28 +9,29 @@ class User(Base):
     __tablename__ = "utilisateurs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    username: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True) # Ajout du username unique
+    username: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True) 
     name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, nullable=False)
     password: Mapped[str] = mapped_column(String, nullable=False)
     
     children: Mapped[list["Child"]] = relationship(back_populates="parent")
+    # Relation ajoutée pour accéder aux scans du parent
+    scans: Mapped[list["ScanHistory"]] = relationship(back_populates="parent")
 
 class Child(Base):
     __tablename__ = "enfants"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    # Remplacement de age par birthdate
     birthdate: Mapped[date] = mapped_column(Date, nullable=False)
-    # Ajout de la colonne allergies
     allergies: Mapped[str] = mapped_column(String, nullable=True, default="")
 
     id_parent: Mapped[int] = mapped_column(ForeignKey("utilisateurs.id"))
     parent: Mapped["User"] = relationship(back_populates="children")
 
-    products: Mapped[list["Product"]] = relationship(back_populates="child")
     stories: Mapped[list["Story"]] = relationship(back_populates="child")
+    # L'enfant est maintenant lié à ses scans (historique)
+    scans: Mapped[list["ScanHistory"]] = relationship(back_populates="child")
 
 class Product(Base):
     __tablename__ = "produits"
@@ -44,7 +45,6 @@ class Product(Base):
 
     calories: Mapped[float] = mapped_column(Float)
     glucides: Mapped[float] = mapped_column(Float, default=0.0)
-    # AJOUT DES DEUX CHAMPS DEMANDÉS
     sugars: Mapped[float] = mapped_column(Float, default=0.0)
     fibers: Mapped[float] = mapped_column(Float, default=0.0)
     
@@ -53,8 +53,24 @@ class Product(Base):
     lipids: Mapped[float] = mapped_column(Float)
     salt: Mapped[float] = mapped_column(Float)
 
+    # Le produit est lié à l'historique des scans
+    scans: Mapped[list["ScanHistory"]] = relationship(back_populates="product")
+
+class ScanHistory(Base):
+    __tablename__ = "historique_scans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    scan_date: Mapped[date] = mapped_column(Date, default=date.today)
+
+    # Clés étrangères créant le cloisonnement parfait
+    id_parent: Mapped[int] = mapped_column(ForeignKey("utilisateurs.id"))
     id_child: Mapped[int] = mapped_column(ForeignKey("enfants.id"))
-    child: Mapped["Child"] = relationship(back_populates="products")
+    id_product: Mapped[int] = mapped_column(ForeignKey("produits.id"))
+
+    # Relations
+    parent: Mapped["User"] = relationship(back_populates="scans")
+    child: Mapped["Child"] = relationship(back_populates="scans")
+    product: Mapped["Product"] = relationship(back_populates="scans")
 
 class Story(Base):
     __tablename__ = "histoires"

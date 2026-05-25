@@ -3,10 +3,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
 import json
-from datetime import date # <--- AJOUTÉ
+from datetime import date 
 
 from schemas import ProductCreate, ProductRead
-from models import Product, Child
+# Importation de ScanHistory en plus
+from models import Product, Child, ScanHistory 
 from db.database import get_db
 
 # --- IMPORTATION DU CERVEAU DEPUIS MAIN ---
@@ -57,55 +58,64 @@ def add_products(id_child: int, product: ProductCreate, db: Session = Depends(ge
         )
 
     # --- CALCUL DE L'ÂGE DYNAMIQUE ---
-    # On calcule l'âge à partir de child.birthdate (assumé objet date/datetime)
     today = date.today()
     age_calcule = today.year - child.birthdate.year - ((today.month, today.day) < (child.birthdate.month, child.birthdate.day))
 
-    # 2. LOGIQUE ANTI-DOUBLON
-    existing_product = db.query(Product).filter(
-        Product.barcode == product.barcode,
-        Product.id_child == id_child
-    ).first()
-
-    if existing_product:
-        print(f"⚠️ Produit déjà existant : {product.name}")
-        # On utilise age_calcule au lieu de child.age
-        pandoo_result = generer_analyse_pandoo(existing_product, age_calcule)
-        return {
-            "product": existing_product,
-            "analysis": pandoo_result
-        }
-
-    # 3. Création du nouveau produit
-    new_product = Product(
-        barcode=product.barcode,
-        type=product.type,
-        name=product.name,
-        brand=product.brand,
-        calories=product.calories,
-        glucides=product.glucides, 
-        calcium=product.calcium,
-        proteins=product.proteins,
-        lipids=product.lipids,
-        salt=product.salt,
-        id_child=id_child
-    )
-    
     try:
-        db.add(new_product)
-        db.commit()
-        db.refresh(new_product)
-        
+        # 2. LOGIQUE ANTI-DOUBLON DU PRODUIT GLOBAL (Par Code-barres)
+        existing_product = db.query(Product).filter(
+            Product.barcode == product.barcode
+        ).first()
+
+        if existing_product:
+            print(f"⚠️ Produit global déjà existant : {product.name}")
+            target_product = existing_product
+        else:
+            # Création du nouveau produit unique s'il n'existe pas dans le catalogue
+            target_product = Product(
+                barcode=product.barcode,
+                type=product.type,
+                name=product.name,
+                brand=product.brand,
+                calories=product.calories,
+                glucides=product.glucides, 
+                calcium=product.calcium,
+                proteins=product.proteins,
+                lipids=product.lipids,
+                salt=product.salt
+            )
+            db.add(target_product)
+            db.commit()
+            db.refresh(target_product)
+            print(f"✨ Nouveau produit ajouté au catalogue : {target_product.name}")
+
+        # 3. ENREGISTREMENT DU SCAN DANS L'HISTORIQUE (Lien Enfant/Parent)
+        # On vérifie si cet enfant précis n'a pas déjà scanné ce produit aujourd'hui (Optionnel mais évite les doublons d'historique identiques)
+        existing_scan = db.query(ScanHistory).filter(
+            ScanHistory.id_child == id_child,
+            ScanHistory.id_product == target_product.id,
+            ScanHistory.scan_date == today
+        ).first()
+
+        if not existing_scan:
+            new_scan = ScanHistory(
+                id_parent=child.id_parent, # Récupéré de manière sécurisée via l'enfant
+                id_child=id_child,
+                id_product=target_product.id,
+                scan_date=today
+            )
+            db.add(new_scan)
+            db.commit()
+            print(f"✅ Scan enregistré dans l'historique de l'enfant ID {id_child}")
+
         # --- GÉNÉRATION DE L'ANALYSE ---
-        # On utilise age_calcule au lieu de child.age
-        pandoo_result = generer_analyse_pandoo(new_product, age_calcule)
-        
-        print(f"✅ Produit enregistré avec succès : {new_product.name}")
+        pandoo_result = generer_analyse_pandoo(target_product, age_calcule)
         
         return {
-            "product": new_product,
+            "product": target_product,
             "analysis": pandoo_result
         }
+        
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Erreur BDD : {str(e)}")
@@ -129,7 +139,7 @@ def get_all_products(db: Session = Depends(get_db)):
             "lipids": p.lipids,
             "salt": p.salt,
             "calcium": p.calcium,
-            "id_child": p.id_child
+            "id_child": 0 # Renvoyé à 0 ou valeur par défaut car le produit est maintenant global
         })
     
     return JSONResponse(
@@ -140,16 +150,24 @@ def get_all_products(db: Session = Depends(get_db)):
 # --- VOIR LES PRODUITS D'UN ENFANT PRÉCIS ---
 @router.get("/child/{id_child}", response_model=List[ProductRead])
 def get_products_by_child(id_child: int, db: Session = Depends(get_db)):
-    products = db.query(Product).filter(Product.id_child == id_child).all()
+    # On passe par la table ScanHistory pour récupérer uniquement les scans de cet enfant
+    scans = db.query(ScanHistory).filter(ScanHistory.id_child == id_child).all()
     
-    products_data = [
-        {
-            "id": p.id, "barcode": p.barcode, "name": p.name, 
-            "type": p.type, "brand": p.brand, "calories": p.calories,
-            "glucides": p.glucides, "proteins": p.proteins, "salt": p.salt,
-            "id_child": p.id_child
-        } for p in products
-    ]
+    products_data = []
+    for scan in scans:
+        p = scan.product
+        products_data.append({
+            "id": p.id, 
+            "barcode": p.barcode, 
+            "name": p.name, 
+            "type": p.type, 
+            "brand": p.brand, 
+            "calories": p.calories,
+            "glucides": p.glucides, 
+            "proteins": p.proteins, 
+            "salt": p.salt,
+            "id_child": id_child
+        })
     
     return JSONResponse(
         content=products_data,
