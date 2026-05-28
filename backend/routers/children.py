@@ -1,61 +1,93 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from schemas import ChildCreate, ChildRead
 from models import Child, User
 from db.database import get_db
+# Import de la dépendance de sécurité
+from core.security import get_current_user 
 
 router = APIRouter(
     prefix="/children",
     tags=["Children"]
 )
 
-
-@router.post("/{parent_id}", response_model=ChildRead)
+@router.post("/", response_model=ChildRead) # Plus de {parent_id} ici
 def create_child(
-    parent_id: int,
-    child: ChildCreate,
-    db: Session = Depends(get_db)
+    child: ChildCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user) # Le parent est l'user connecté
 ):
     """
-    Créer un enfant lié à un parent
+    Créer un enfant lié au parent connecté (via le token)
     """
-
-    # Vérifie que le parent existe
-    parent = db.query(User).filter(User.id == parent_id).first()
-    
-
-    if not parent:
-        raise HTTPException(
-            status_code=404,
-            detail="Parent introuvable"
-        )
-
-    # Création enfant
     new_child = Child(
         name=child.name,
-        age=child.age,
-        id_parent=parent.id
+        birthdate=child.birthdate,
+        allergenes=child.allergenes,
+        id_parent=current_user.id # Utilisation directe de l'ID du token
     )
 
     db.add(new_child)
     db.commit()
     db.refresh(new_child)
-
     return new_child
 
-@router.get("/")
-def list_all_children(db : Session = Depends(get_db)):
-    return db.query(Child).all()
 
-@router.get("/{parent_id}")
-def list_parent_children(parent_id : int, db : Session = Depends(get_db)):
-    return db.query(Child).filter(Child.id_parent == parent_id).all()
+@router.get("/", response_model=list[ChildRead])
+def list_my_children(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Liste uniquement les enfants appartenant à l'utilisateur connecté
+    """
+    return db.query(Child).filter(Child.id_parent == current_user.id).all()
 
-@router.put("/{id}")
-def update_child():
-    pass
 
-@router.delete("/{id}")
-def delete_child():
-    pass
+@router.put("/{child_id}", response_model=ChildRead)
+def update_child(
+    child_id: int, 
+    child_update: ChildCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Met à jour un enfant, seulement s'il appartient à l'utilisateur connecté
+    """
+    child = db.query(Child).filter(
+        Child.id == child_id, 
+        Child.id_parent == current_user.id
+    ).first()
+
+    if not child:
+        raise HTTPException(status_code=404, detail="Enfant non trouvé")
+
+    child.name = child_update.name
+    child.age = child_update.age
+    
+    db.commit()
+    db.refresh(child)
+    return child
+
+
+@router.delete("/{child_id}")
+def delete_child(
+    child_id: int, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Supprime un enfant, seulement s'il appartient à l'utilisateur connecté
+    """
+    child = db.query(Child).filter(
+        Child.id == child_id, 
+        Child.id_parent == current_user.id
+    ).first()
+
+    if not child:
+        raise HTTPException(status_code=404, detail="Enfant non trouvé")
+
+    db.delete(child)
+    db.commit()
+    return {"message": "Enfant supprimé avec succès"}

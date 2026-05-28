@@ -1,46 +1,42 @@
-from openai import AsyncOpenAI
-from elevenlabs.client import AsyncElevenLabs
-import aiofiles
-import os
+import uuid
+import httpx
+from gtts import gTTS
 from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv()
-
-api_key_ELEVENLABS = os.getenv("API_KEY_ELEVENLABS")
-api_key_OPEN_AI = os.getenv("API_KEY_OPEN_AI")
-
-clientElevenLabs = AsyncElevenLabs(api_key=api_key_ELEVENLABS)
-clientOpenAI = AsyncOpenAI(api_key=api_key_OPEN_AI)
 
 
-async def generate_story(id_child: int, voice_id: str) -> str:
-    try:
-        response = await clientOpenAI.responses.create(
-            model="gpt-4.1-mini",
-            input="Explain gravity to a 10 year old."
+async def generate_story():
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(
+            "http://localhost:11434/api/chat",
+            json={
+                "model": "llama3",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Raconte moi une histoire pour enfant en français"
+                    }
+                ],
+                "stream": False
+            }
         )
 
-        generated_text = response.output_text
+    story = r.json()["message"]["content"]
 
-        audio_stream = clientElevenLabs.text_to_speech.convert(
-            text=generated_text,
-            voice_id=voice_id,
-            model_id="eleven_multilingual_v2",
-            output_format="mp3_44100_128",
-        )
+    BASE_DIR = Path(__file__).resolve().parent
+    output_dir = BASE_DIR  / "stories_audio"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        BASE_DIR = Path(__file__).resolve().parent
-        stories_dir = BASE_DIR / "stories_audio"
-        stories_dir.mkdir(exist_ok=True)
+    filename = f"{uuid.uuid4()}.mp3"
+    filepath = output_dir / filename
 
-        filename = stories_dir / f"story_{id_child}.mp3"
+    tts = gTTS(text=story, lang="fr")
+    tts.save(str(filepath))
 
-        async with aiofiles.open(filename, "wb") as f:
-            async for chunk in audio_stream:
-                await f.write(chunk)
+    return str(filepath)
 
-        return str(filename)
 
-    except Exception as e:
-        raise RuntimeError(f"Erreur génération story : {e}")
+import asyncio
+
+if __name__ == "__main__":
+    filepath = asyncio.run(generate_story())
+    print(f"Audio généré : {filepath}")

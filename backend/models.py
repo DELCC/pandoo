@@ -12,10 +12,12 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name : Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, nullable=False)
-    password : Mapped[str] = mapped_column(String,nullable=False)
     children: Mapped[list["Child"]] = relationship(
         back_populates="parent"
     )
+    password_hash : Mapped[str] = mapped_column(String,nullable=False)
+    google_id : Mapped[str] = mapped_column(String,nullable=True)
+
 
 
 class Child(Base):
@@ -23,8 +25,8 @@ class Child(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    age: Mapped[int] = mapped_column(Integer, nullable=False)
-
+    birthdate: Mapped[str] = mapped_column(String, nullable=False)
+    allergenes: Mapped[str] = mapped_column(String, nullable=False)
     id_parent: Mapped[int] = mapped_column(
         ForeignKey("utilisateurs.id")
     )

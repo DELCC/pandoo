@@ -3,13 +3,27 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from db.database import get_db
-from models import User
-from routers import users, children, products
+from routers import users, children, products, stories
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 app = FastAPI()
+
+# --- Configuration du CORS pour Expo ---
+# Le wildcard "*" est essentiel pour le développement mobile (Android/iOS/Expo Go)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Autorise toutes les origines (indispensable pour le mobile)
+    allow_credentials=True,
+    allow_methods=["*"],  # Autorise GET, POST, PUT, DELETE, etc.
+    allow_headers=["*"],  # Autorise Authorization, Content-Type, etc.
+)
+
 app.include_router(users.router)
 app.include_router(children.router)
 app.include_router(products.router)
+app.include_router(stories.router)
 
 @app.get("/")
 def root():
