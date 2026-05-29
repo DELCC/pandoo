@@ -6,6 +6,9 @@ from models import User
 from db.database import get_db
 import models
 
+# 🔐 SÉCURITÉ : Importation de ton module pour générer le token JWT
+import security
+
 router = APIRouter(
     prefix="/users",
     tags=["Users"]
@@ -79,8 +82,14 @@ def get_user_by_email(email: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Email non reconnu")
 
+    # 🔐 Génération du jeton d'accès pour cet utilisateur
+    access_token = security.create_access_token(data={"sub": user.email})
+
+    # Renvoie les informations d'origine complétées par le token JWT intercepté par Kivy
     return {
         "id": user.id,
         "username": user.username,
-        "name": user.name
+        "name": user.name,
+        "access_token": access_token,
+        "token_type": "bearer"
     }
