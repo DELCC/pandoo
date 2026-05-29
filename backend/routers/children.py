@@ -6,6 +6,9 @@ from pydantic import BaseModel
 from typing import Optional # AJOUTÉ
 from datetime import date 
 
+# 🌟 IMPORTATION DE TON FICHIER DE SÉCURITÉ
+import security
+
 router = APIRouter(prefix="/children", tags=["Children"])
 
 # --- SCHÉMA DE DONNÉES (Pydantic) ---
@@ -18,8 +21,8 @@ class ChildCreate(BaseModel):
 # --- ROUTES ---
 
 @router.post("/")
-def create_child(child_data: ChildCreate, db: Session = Depends(get_db)):
-    # 1. Vérification de l'existence du parent
+def create_child(child_data: ChildCreate, db: Session = Depends(get_db), current_user: str = Depends(security.get_current_user)):
+    # 1. Vérification de l'existence du parent (et optionnellement validation via current_user)
     parent = db.query(models.User).filter(models.User.id == child_data.id_parent).first()
     
     if not parent:
@@ -50,13 +53,13 @@ def create_child(child_data: ChildCreate, db: Session = Depends(get_db)):
     }
 
 @router.get("/parent/{parent_id}")
-def get_children_by_parent(parent_id: int, db: Session = Depends(get_db)):
+def get_children_by_parent(parent_id: int, db: Session = Depends(get_db), current_user: str = Depends(security.get_current_user)):
     """Récupère la liste de tous les enfants pour un parent donné"""
     children = db.query(models.Child).filter(models.Child.id_parent == parent_id).all()
     return children
 
 @router.get("/{child_id}")
-def get_child_details(child_id: int, db: Session = Depends(get_db)):
+def get_child_details(child_id: int, db: Session = Depends(get_db), current_user: str = Depends(security.get_current_user)):
     """Récupère les détails d'un enfant spécifique"""
     child = db.query(models.Child).filter(models.Child.id == child_id).first()
     if not child:

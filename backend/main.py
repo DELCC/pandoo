@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-# Autorise le HTTP pour OAuthlib (évite l'erreur mismatching_state en local)
+# 🌟 EN PRODUCTION : Il faudra supprimer cette ligne et passer ton serveur en HTTPS !
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  # <-- AJOUTÉ
 
 # --- CHARGEMENT DE LA BASE NUTRITIONNELLE ---
@@ -28,6 +28,9 @@ import models
 
 # Importation des routeurs
 from routers import users, children, products, auth 
+
+# 🌟 IMPORTATION DE TON NOUVEAU FICHIER DE SÉCURITÉ
+import security
 
 # --- SCHÉMA DE CONNEXION ---
 class LoginData(BaseModel):
@@ -57,7 +60,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ROUTE LOGIN CLASSIQUE ---
+# --- ROUTE LOGIN CLASSIQUE SÉCURISÉE ---
 @app.post("/login", tags=["Authentication"])
 def login(data: LoginData, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == data.email).first()
@@ -65,13 +68,20 @@ def login(data: LoginData, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Email non reconnu")
     
-    if user.password != data.password:
+    # 🔐 VÉRIFICATION SÉCURISÉE : Utilise la logique Bcrypt de ton security.py
+    if not security.verify_password(data.password, user.password):
         raise HTTPException(status_code=401, detail="Mot de passe incorrect")
     
+    # 🔐 GÉNÉRATION DU JETON JWT ACCÈS
+    access_token = security.create_access_token(data={"sub": user.email})
+    
+    # On retourne le profil de l'utilisateur ET le badge d'accès (token) pour Kivy
     return {
         "id": user.id,
         "name": user.name,
         "email": user.email,
+        "access_token": access_token,
+        "token_type": "bearer",
         "status": "success"
     }
 
